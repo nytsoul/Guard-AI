@@ -16,7 +16,7 @@ interface RequestOptions {
  */
 async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const token = localStorage.getItem('auth_token');
-  
+
   const config: RequestInit = {
     method: options.method || 'GET',
     headers: {
@@ -32,7 +32,7 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
       throw new Error(error.error || `Request failed with status ${response.status}`);
@@ -52,14 +52,20 @@ export const auth = {
       method: 'POST',
       body: { email, password },
     }),
-  
+
   logout: () =>
     apiRequest('/auth/logout', { method: 'POST' }),
-  
+
   googleLogin: (accessToken: string) =>
     apiRequest('/auth/google', {
       method: 'POST',
       body: { access_token: accessToken },
+    }),
+
+  signup: (data: any) =>
+    apiRequest('/auth/signup', {
+      method: 'POST',
+      body: data,
     }),
 };
 
@@ -72,9 +78,9 @@ export const dashboard = {
 export const logs = {
   getAll: (params?: { attackType?: string; severity?: string; limit?: number; offset?: number }) =>
     apiRequest(`/logs?${new URLSearchParams(params as any).toString()}`),
-  
+
   getById: (logId: string) => apiRequest(`/logs/${logId}`),
-  
+
   exportUrl: (params?: { attackType?: string; severity?: string }) =>
     `${API_BASE_URL}/logs/export?${new URLSearchParams(params as any).toString()}`,
 };
@@ -82,29 +88,29 @@ export const logs = {
 // Projects APIs
 export const projects = {
   getAll: () => apiRequest('/projects'),
-  
+
   getById: (projectId: string) => apiRequest(`/projects/${projectId}`),
-  
+
   create: (data: any) =>
     apiRequest('/projects', {
       method: 'POST',
       body: data,
     }),
-  
+
   update: (projectId: string, data: any) =>
     apiRequest(`/projects/${projectId}`, {
       method: 'PUT',
       body: data,
     }),
-  
+
   delete: (projectId: string) =>
     apiRequest(`/projects/${projectId}`, {
       method: 'DELETE',
     }),
-  
+
   getMetrics: (projectId: string, days: number = 7) =>
     apiRequest(`/projects/${projectId}/metrics?days=${days}`),
-  
+
   getApiKeys: (projectId: string) =>
     apiRequest(`/projects/${projectId}/api-keys`),
 };
@@ -112,9 +118,9 @@ export const projects = {
 // Policies APIs
 export const policies = {
   getAll: () => apiRequest('/policies'),
-  
+
   getById: (policyId: string) => apiRequest(`/policies/${policyId}`),
-  
+
   update: (policyId: string, data: any) =>
     apiRequest(`/policies/${policyId}`, {
       method: 'PUT',
@@ -138,31 +144,31 @@ export const ragScanner = {
       method: 'POST',
       body: { documentName, content },
     }),
-  
+
   getScanHistory: (limit: number = 10) =>
     apiRequest(`/rag/scan-history?limit=${limit}`),
-  
+
   getVectorDbHealth: () => apiRequest('/rag/vector-db-health'),
 };
 
 // Red Team APIs
 export const redTeam = {
   getSimulations: () => apiRequest('/red-team/simulations'),
-  
+
   getAttackVectors: () => apiRequest('/red-team/attack-vectors'),
-  
+
   execute: (config: any) =>
     apiRequest('/red-team/execute', {
       method: 'POST',
       body: { config },
     }),
-  
+
   simulate: (intensity: number, duration: number) =>
     apiRequest('/red-team/simulate', {
       method: 'POST',
       body: { intensity, duration },
     }),
-  
+
   getInsights: () => apiRequest('/red-team/insights'),
 };
 
@@ -173,13 +179,13 @@ export const chat = {
       method: 'POST',
       body: { message },
     }),
-  
+
   secureMessage: (message: string) =>
     apiRequest('/chat/secure', {
       method: 'POST',
       body: { message },
     }),
-  
+
   getDefenseStream: () => apiRequest('/chat/defense-stream'),
 };
 
@@ -187,16 +193,16 @@ export const chat = {
 export const analytics = {
   getOverview: (range: string = '7d') =>
     apiRequest(`/analytics/overview?range=${range}`),
-  
+
   getCompliance: () => apiRequest('/analytics/compliance'),
-  
+
   getReports: () => apiRequest('/analytics/reports'),
 };
 
 // System APIs
 export const system = {
   getStatus: () => apiRequest('/system/status'),
-  
+
   health: () => apiRequest('/health'),
 };
 

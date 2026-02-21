@@ -8,6 +8,9 @@ import random
 import json
 import re
 from datetime import datetime, timedelta
+import time
+import traceback
+import sys
 from functools import wraps
 
 from flask import Flask, request, jsonify
@@ -24,7 +27,21 @@ from bson import ObjectId
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+# Enable CORS for all routes and origins
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+
+# Global error handler to catch 500s and return JSON with CORS headers
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the full error to terminal
+    print(f"\n--- SERVER ERROR ---\n{str(e)}\n-------------------\n")
+    import traceback
+    traceback.print_exc()
+    
+    return jsonify({
+        "error": "Internal Server Error",
+        "message": str(e)
+    }), 500
 
 # Configuration
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/sentinel_shield')
@@ -46,6 +63,9 @@ projects_col = db['projects']
 policies_col = db['policies']
 scans_col = db['scanned_documents']
 simulations_col = db['red_team_simulations']
+
+# In-memory users fallback (when Mongo unavailable)
+users = []
 
 # Threat patterns for analysis
 THREAT_PATTERNS = [
@@ -109,6 +129,16 @@ def init_db():
                     "status": "Healthy"
                 }
             ])
+        # ensure default admin user exists for both db and memory
+        admin_email = "admin@enterprise.com"
+        admin_password = bcrypt.hashpw("password".encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        try:
+            if users_col.count_documents({"email": admin_email}) == 0:
+                users_col.insert_one({"email": admin_email, "password": admin_password, "name": "Admin User", "role": "admin", "createdAt": datetime.now().isoformat()})
+        except Exception:
+            # fallback: add to in-memory list
+            if not any(u['email'] == admin_email for u in users):
+                users.append({"email": admin_email, "password": admin_password, "name": "Admin User", "role": "admin", "createdAt": datetime.now().isoformat(), "id": admin_email})
             print("Seeded projects collection")
 
         # Seed policies
@@ -199,9 +229,16 @@ def health_check():
         "timestamp": datetime.now().isoformat()
     })
 
-# Authentication
-@app.route('/api/auth/login', methods=['POST'])
+@app.before_request
+def log_request_info():
+    app.logger.debug('Headers: %s', request.headers)
+    app.logger.debug('Body: %s', request.get_data())
+    print(f"\n>>> REQUEST: {request.method} {request.path}")
+
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
 def login():
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.json
     email = data.get('email', '')
     password = data.get('password', '')
@@ -209,13 +246,25 @@ def login():
     if not email or not password:
         return jsonify({"error": "Email and password required"}), 400
     
-    user = users_col.find_one({"email": email})
-    
+    # try Mongo first, fallback to in-memory list
+    user = None
+    try:
+        user = users_col.find_one({"email": email})
+    except Exception:
+        # ignore DB errors
+        pass
+    if not user:
+        user = next((u for u in users if u['email'] == email), None)
+
     if user and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+        user_id = str(user.get('_id', user.get('id', email)))
         token = jwt.encode({
-            'user_id': str(user['_id']),
-            'exp': datetime.utcnow() + timedelta(hours=24)
+            'user_id': user_id,
+            'exp': int(time.time() + 86400)
         }, JWT_SECRET, algorithm='HS256')
+        
+        if isinstance(token, bytes):
+            token = token.decode('utf-8')
         
         return jsonify({
             "token": token,
@@ -230,8 +279,68 @@ def login():
     
     return jsonify({"error": "Invalid email or password"}), 401
 
-@app.route('/api/auth/google', methods=['POST'])
+@app.route('/api/auth/signup', methods=['POST', 'OPTIONS'])
+def signup():
+    if request.method == 'OPTIONS':
+        return '', 204
+    data = request.json
+    email = data.get('email', '')
+    password = data.get('password', '')
+    name = data.get('name', '')
+
+    if not email or not password or not name:
+        return jsonify({"error": "Name, email, and password are required"}), 400
+
+    # check existing
+    exists = False
+    try:
+        exists = users_col.find_one({"email": email}) is not None
+    except Exception:
+        exists = any(u['email'] == email for u in users)
+
+    if exists:
+        return jsonify({"error": "User with this email already exists"}), 400
+
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    user_record = {
+        "email": email,
+        "password": hashed_password,
+        "name": name,
+        "role": "user",
+        "createdAt": datetime.now().isoformat()
+    }
+
+    user_id = email
+    try:
+        result = users_col.insert_one(user_record)
+        user_id = str(result.inserted_id)
+    except Exception:
+        # fallback to in-memory
+        users.append({**user_record, "id": email})
+
+    token = jwt.encode({
+        'user_id': user_id,
+        'exp': int(time.time() + 86400)
+    }, JWT_SECRET, algorithm='HS256')
+
+    if isinstance(token, bytes):
+        token = token.decode('utf-8')
+
+    return jsonify({
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "role": "user"
+        },
+        "expiresIn": 86400
+    }), 201
+
+@app.route('/api/auth/google', methods=['POST', 'OPTIONS'])
 def google_auth():
+    if request.method == 'OPTIONS':
+        return '', 204
     data = request.json
     access_token = data.get('access_token')
     
@@ -626,4 +735,4 @@ def get_analytics_overview():
     return jsonify({"timeSeries": time_series})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)

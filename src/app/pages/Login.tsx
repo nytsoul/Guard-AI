@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import { Shield, Mail, Lock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -173,7 +173,15 @@ export function Login() {
         </Card>
 
         <div className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
-          <p>New to Sentinel? <a href="#" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium">Setup Organization</a></p>
+          <p>
+            New to Sentinel?{' '}
+            <button
+              onClick={() => navigate('/signup')}
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium bg-transparent border-none p-0 cursor-pointer"
+            >
+              Create an account
+            </button>
+          </p>
         </div>
 
         <div className="mt-8 pt-8 text-center text-xs text-slate-400 dark:text-slate-600 space-y-1">
