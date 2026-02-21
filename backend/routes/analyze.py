@@ -77,7 +77,7 @@ def _run_pipeline(text: str, policy: dict) -> dict:
         except Exception as e:
             print(f"❌ Local model error: {e}")
             from services.local_model_service import LocalModelResult
-            local_res = LocalModelResult(score=0.0, confidence=0.0, explanation="Local model failed", available=False)
+            local_res = LocalModelResult(score=0.0, confidence=0.0, available=False, label="SAFE")
         
         try:
             llm_res = llm_security_service.classify(text)

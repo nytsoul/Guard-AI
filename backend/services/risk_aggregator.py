@@ -79,7 +79,7 @@ class AggregatedResult:
     llm_indicators: Optional[List[str]] = None
 
     def as_dict(self) -> dict:
-        return {
+        result = {
             # Primary scores
             "rule_score": round(self.rule_score, 2),
             "local_model_score": round(self.local_model_score, 2),
@@ -87,7 +87,10 @@ class AggregatedResult:
             "final_risk_score": round(self.final_risk_score, 2),
             # Keep riskScore alias for frontend
             "riskScore": round(self.final_risk_score, 2),
+            "risk_score": round(self.final_risk_score, 2),  # Add this for consistency
             "riskLevel": self.risk_level,
+            "risk_level": self.risk_level,  # Add this for consistency
+            "is_safe": self.final_risk_score < 50,  # Add is_safe field
             # Classification
             "attack_type": self.attack_type,
             "attackType": self.attack_type,
@@ -109,7 +112,25 @@ class AggregatedResult:
             "llmReasoning": self.llm_reasoning,
             "llmIndicators": self.llm_indicators or [],
             "layersUsed": self.layers_used,
+            # Layer details for debugging and transparency
+            "details": {
+                "rule_engine_score": round(self.rule_score, 2),
+                "local_model_score": round(self.local_model_score, 2),
+                "llm_score": round(self.llm_score, 2),
+                "layers_used": self.layers_used
+            }
         }
+        
+        # Add local model details if available
+        if hasattr(self, '_local_result') and self._local_result:
+            result["local_model"] = {
+                "available": self._local_result.available,
+                "score": round(self._local_result.score, 2),
+                "confidence": round(self._local_result.confidence, 3),
+                "label": self._local_result.label
+            }
+        
+        return result
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -343,6 +364,9 @@ def aggregate(
         llm_indicators=llm_result.top_indicators if llm_ok else [],
         explanation=ExplanationDetail("", "", [], "", ""),  # filled below
     )
+
+    # Store local model result for response details
+    result._local_result = local_result
 
     result.explanation = _build_explanation(result, rule_result, llm_result, local_result)
     return result

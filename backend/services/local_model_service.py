@@ -115,6 +115,13 @@ def initialize(model_path: str) -> None:
         logger.info("LOCAL_MODEL_PATH is empty — skipping local model, using heuristic.")
         return
 
+    # Resolve path relative to backend directory if not absolute
+    if not os.path.isabs(model_path):
+        # Get the backend directory (parent of services)
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        model_path = os.path.join(backend_dir, model_path)
+        logger.info("Resolved relative model path to: %s", model_path)
+
     # Only load if the directory actually exists on disk
     if not os.path.isdir(model_path):
         logger.info(
