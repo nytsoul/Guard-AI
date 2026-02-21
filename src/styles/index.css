@@ -2,6 +2,21 @@
 @import './tailwind.css';
 @import './theme.css';
 
+/* Apply fonts */
+body {
+  font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+}
+
+/* Technical/code elements use JetBrains Mono */
+code,
+pre,
+kbd,
+samp,
+.font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+}
+
 /* Smooth theme transitions */
 * {
   transition-property: background-color, border-color, color, fill, stroke;

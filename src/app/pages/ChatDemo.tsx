@@ -4,19 +4,33 @@ import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { Send, Shield, CheckCircle2, Bot, User, Zap, Clock, ShieldCheck, Activity } from 'lucide-react';
-import { analyzePrompt } from '../utils/security';
+import { toast } from 'sonner';
+import api from '../utils/api';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   analysis?: {
-    riskLevel: string;
     riskScore: number;
-    blocked: boolean;
-    reason: string;
+    status: string;
+    threats: string[];
+    processingTime?: number;
+    layers?: {
+      inputFirewall: string;
+      contextAnalysis: string;
+      outputGuard: string;
+    };
   };
   timestamp: Date;
+}
+
+interface DefenseEvent {
+  timestamp: string;
+  type: string;
+  severity: string;
+  message: string;
+  details: string;
 }
 
 export function ChatDemo() {
@@ -24,87 +38,100 @@ export function ChatDemo() {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I\'m a secured AI assistant protected by Sentinel Shield. All conversations pass through the security middleware. How can I help you today?',
-      timestamp: new Date()
-    }
+      content: "Hello! I'm a secured AI assistant protected by Sentinel Shield. All conversations pass through the security middleware. How can I help you today?",
+      timestamp: new Date(),
+    },
   ]);
   const [input, setInput] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [defenseEvents, setDefenseEvents] = useState<DefenseEvent[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const policy = { blockHigh: true, blockMedium: false, sensitivity: 1.0 };
-
-  // Defense stream log
-  const [defenseLog, setDefenseLog] = useState([
-    { time: '14:32:01', message: 'Middleware proxy initialized', type: 'info' },
-    { time: '14:32:05', message: 'Input sanitization layer active', type: 'info' },
-    { time: '14:32:12', message: 'Session #4821 connected', type: 'info' },
-    { time: '14:33:44', message: 'Prompt injection attempt — BLOCKED', type: 'blocked' },
-    { time: '14:34:02', message: 'Safe query processed (12ms)', type: 'safe' },
-  ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const fetchDefenseStream = async () => {
+      try {
+        const data = await api.chat.getDefenseStream() as { events: DefenseEvent[] };
+        setDefenseEvents(data.events);
+      } catch (err) {
+        // silent fail for defense stream
+      }
+    };
+    fetchDefenseStream();
+    const interval = setInterval(fetchDefenseStream, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim() || analyzing) return;
+    const userInput = input;
     setAnalyzing(true);
-
-    const analysis = analyzePrompt(input, policy);
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      analysis: {
-        riskLevel: analysis.riskLevel,
-        riskScore: analysis.riskScore,
-        blocked: analysis.blocked,
-        reason: analysis.reason
-      },
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
     setInput('');
 
-    // Add to defense log
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+    const tempUserMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userInput,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, tempUserMessage]);
 
-    if (analysis.blocked) {
-      setDefenseLog(prev => [...prev, { time: timeStr, message: `${analysis.attackType} attempt — BLOCKED`, type: 'blocked' }]);
-    } else {
-      setDefenseLog(prev => [...prev, { time: timeStr, message: `Safe query processed (${Math.floor(Math.random() * 20 + 5)}ms)`, type: 'safe' }]);
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    if (analysis.blocked) {
-      const blockedResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '🛡️ This request was intercepted by Sentinel Shield security middleware.\n\nThe prompt was classified as a potential security threat and has been blocked according to your active policy configuration.',
-        timestamp: new Date()
+    try {
+      const result = await api.chat.sendMessage(userInput) as {
+        messageId: string;
+        userMessage: string;
+        response: string;
+        status: string;
+        riskScore: number;
+        threats: string[];
+        timestamp: string;
+        processingTime: number;
+        layers: { inputFirewall: string; contextAnalysis: string; outputGuard: string };
       };
-      setMessages(prev => [...prev, blockedResponse]);
-    } else {
-      const responses = [
-        'I can help you with that! Your request passed all security checks and was processed through the secure middleware proxy.',
-        'That\'s a great question! After passing through our security layers, here\'s my response to your query.',
-        'Your request has been validated and processed securely. Here\'s the information you requested.',
-      ];
+
+      const finalUserMessage: Message = {
+        ...tempUserMessage,
+        analysis: {
+          riskScore: result.riskScore,
+          status: result.status,
+          threats: result.threats,
+          processingTime: result.processingTime,
+          layers: result.layers,
+        },
+      };
+
+      setMessages(prev => prev.map(m => m.id === tempUserMessage.id ? finalUserMessage : m));
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: responses[Math.floor(Math.random() * responses.length)],
-        timestamp: new Date()
+        content: result.response,
+        timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
-    }
 
-    setAnalyzing(false);
+      // Add to defense log
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+      const newEvent: DefenseEvent = {
+        timestamp: now.toISOString(),
+        type: result.status === 'blocked' ? 'threat_blocked' : 'request_analyzed',
+        severity: result.riskScore > 70 ? 'high' : result.riskScore > 40 ? 'medium' : 'low',
+        message: result.status === 'blocked'
+          ? `Blocked ${result.threats[0] || 'threat'}`
+          : `Safe query processed (${Math.round((result.processingTime || 0.1) * 1000)}ms)`,
+        details: `Risk score: ${result.riskScore}/100`,
+      };
+      setDefenseEvents(prev => [newEvent, ...prev].slice(0, 20));
+    } catch (err) {
+      toast.error('Failed to send message');
+      setMessages(prev => prev.filter(m => m.id !== tempUserMessage.id));
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -114,8 +141,11 @@ export function ChatDemo() {
     }
   };
 
-  const blockedCount = messages.filter(m => m.analysis?.blocked).length;
+  const blockedCount = messages.filter(m => m.analysis?.status === 'blocked').length;
   const totalUserMessages = messages.filter(m => m.role === 'user').length;
+  const avgRisk = totalUserMessages > 0
+    ? Math.round(messages.filter(m => m.analysis).reduce((sum, m) => sum + (m.analysis?.riskScore ?? 0), 0) / Math.max(totalUserMessages, 1))
+    : 0;
 
   return (
     <div className="space-y-6 pb-8">
@@ -143,10 +173,10 @@ export function ChatDemo() {
                   <Shield className="size-4 text-blue-600" />
                   <span className="font-semibold text-sm">Secured Chat Session</span>
                 </div>
-                <span className="text-xs text-slate-400">Session #4821</span>
+                <span className="text-xs text-slate-400">Session #{Math.floor(Math.random() * 9000 + 1000)}</span>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 flex flex-col p-0">
+            <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((message) => (
@@ -160,19 +190,24 @@ export function ChatDemo() {
                       <div className={`max-w-[80%] ${message.role === 'user' ? 'order-1' : ''}`}>
                         <div className={`rounded-2xl px-4 py-2.5 ${
                           message.role === 'user'
-                            ? message.analysis?.blocked
+                            ? message.analysis?.status === 'blocked'
                               ? 'bg-red-600 text-white'
+                              : message.analysis?.status === 'flagged'
+                              ? 'bg-amber-500 text-white'
                               : 'bg-blue-600 text-white'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
                         }`}>
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         </div>
-                        {/* Security badge */}
                         {message.analysis && (
                           <div className="flex items-center gap-1.5 mt-1 px-2">
-                            {message.analysis.blocked ? (
+                            {message.analysis.status === 'blocked' ? (
                               <Badge className="bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400 text-[10px] gap-1">
                                 <Shield className="size-2.5" /> BLOCKED
+                              </Badge>
+                            ) : message.analysis.status === 'flagged' ? (
+                              <Badge className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 text-[10px] gap-1">
+                                <Shield className="size-2.5" /> FLAGGED
                               </Badge>
                             ) : (
                               <Badge className="bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 text-[10px] gap-1">
@@ -182,13 +217,16 @@ export function ChatDemo() {
                             <span className="text-[10px] text-slate-400">
                               Risk: {message.analysis.riskScore}%
                             </span>
+                            {message.analysis.processingTime && (
+                              <span className="text-[10px] text-slate-400">
+                                · {Math.round(message.analysis.processingTime * 1000)}ms
+                              </span>
+                            )}
                           </div>
                         )}
                         {!message.analysis && (
                           <div className="flex items-center gap-1 mt-1 px-2">
-                            <span className="text-[10px] text-slate-400">
-                              {message.timestamp.toLocaleTimeString()}
-                            </span>
+                            <span className="text-[10px] text-slate-400">{message.timestamp.toLocaleTimeString()}</span>
                           </div>
                         )}
                       </div>
@@ -259,7 +297,6 @@ export function ChatDemo() {
 
         {/* Right Sidebar: Security Intelligence */}
         <div className="space-y-4">
-          {/* Live Security Intelligence */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -276,13 +313,13 @@ export function ChatDemo() {
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-center">
                   <Shield className="size-4 text-blue-500 mx-auto mb-1" />
-                  <p className="text-lg font-bold">12%</p>
+                  <p className="text-lg font-bold">{avgRisk}%</p>
                   <p className="text-[10px] text-slate-500">AVG RISK SCORE</p>
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-center">
                   <ShieldCheck className="size-4 text-red-500 mx-auto mb-1" />
-                  <p className="text-lg font-bold">{blockedCount || 24}</p>
-                  <p className="text-[10px] text-slate-500">BLOCKED HOURLY</p>
+                  <p className="text-lg font-bold">{blockedCount}</p>
+                  <p className="text-[10px] text-slate-500">BLOCKED SESSION</p>
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-center">
                   <CheckCircle2 className="size-4 text-green-500 mx-auto mb-1" />
@@ -293,7 +330,6 @@ export function ChatDemo() {
             </CardContent>
           </Card>
 
-          {/* Layer Status */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Layer Status</CardTitle>
@@ -319,28 +355,23 @@ export function ChatDemo() {
             </CardContent>
           </Card>
 
-          {/* Current Policy */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Current Policy</CardTitle>
+              <CardTitle className="text-base">Session Stats</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Block High Risk</span>
-                  <Badge className="bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 text-[10px]">ON</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Block Medium Risk</span>
-                  <Badge variant="outline" className="text-[10px]">OFF</Badge>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Sensitivity</span>
-                  <span className="font-medium">100%</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-slate-500">Session Messages</span>
                   <span className="font-medium">{totalUserMessages}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Blocked</span>
+                  <span className="font-medium text-red-600">{blockedCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Avg Risk Score</span>
+                  <span className="font-medium">{avgRisk}%</span>
                 </div>
               </div>
             </CardContent>
@@ -352,25 +383,31 @@ export function ChatDemo() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Clock className="size-4" />
-                  Real-time Defense Stream
+                  Defense Stream
                 </CardTitle>
                 <div className="size-2 bg-green-500 rounded-full animate-pulse" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 max-h-[250px] overflow-y-auto font-mono">
-                {defenseLog.slice(-8).map((entry, i) => (
+              <div className="space-y-2 max-h-[200px] overflow-y-auto font-mono">
+                {defenseEvents.slice(0, 10).map((entry, i) => (
                   <div key={i} className="text-[11px] flex gap-2">
-                    <span className="text-slate-400 shrink-0">{entry.time}</span>
+                    <span className="text-slate-400 shrink-0">
+                      {new Date(entry.timestamp).toLocaleTimeString('en-US', { hour12: false })}
+                    </span>
                     <span className={
-                      entry.type === 'blocked' ? 'text-red-600 dark:text-red-400' :
-                      entry.type === 'safe' ? 'text-green-600 dark:text-green-400' :
-                      'text-slate-600 dark:text-slate-400'
+                      entry.type === 'threat_blocked' ? 'text-red-600 dark:text-red-400' :
+                      entry.type === 'pii_detected' ? 'text-amber-600 dark:text-amber-400' :
+                      entry.severity === 'high' ? 'text-red-600 dark:text-red-400' :
+                      'text-green-600 dark:text-green-400'
                     }>
                       {entry.message}
                     </span>
                   </div>
                 ))}
+                {defenseEvents.length === 0 && (
+                  <p className="text-[11px] text-slate-400">No events yet. Send a message to see activity.</p>
+                )}
               </div>
             </CardContent>
           </Card>

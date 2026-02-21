@@ -55,6 +55,12 @@ export const auth = {
   
   logout: () =>
     apiRequest('/auth/logout', { method: 'POST' }),
+  
+  googleLogin: (accessToken: string) =>
+    apiRequest('/auth/google', {
+      method: 'POST',
+      body: { access_token: accessToken },
+    }),
 };
 
 // Dashboard APIs
@@ -68,6 +74,9 @@ export const logs = {
     apiRequest(`/logs?${new URLSearchParams(params as any).toString()}`),
   
   getById: (logId: string) => apiRequest(`/logs/${logId}`),
+  
+  exportUrl: (params?: { attackType?: string; severity?: string }) =>
+    `${API_BASE_URL}/logs/export?${new URLSearchParams(params as any).toString()}`,
 };
 
 // Projects APIs
@@ -80,6 +89,17 @@ export const projects = {
     apiRequest('/projects', {
       method: 'POST',
       body: data,
+    }),
+  
+  update: (projectId: string, data: any) =>
+    apiRequest(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: data,
+    }),
+  
+  delete: (projectId: string) =>
+    apiRequest(`/projects/${projectId}`, {
+      method: 'DELETE',
     }),
   
   getMetrics: (projectId: string, days: number = 7) =>

@@ -67,7 +67,15 @@ export function Layout() {
               {theme === 'light' ? <Moon className="size-4" /> : <Sun className="size-4" />}
             </Button>
           </div>
-          <Button variant="outline" className="w-full justify-start gap-2 text-sm" onClick={() => window.location.href = '/login'}>
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2 text-sm"
+            onClick={() => {
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('user_email');
+              window.location.href = '/login';
+            }}
+          >
             <LogOut className="size-4" />
             Sign Out
           </Button>
