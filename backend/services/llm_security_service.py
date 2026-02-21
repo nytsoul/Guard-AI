@@ -54,8 +54,8 @@ def initialize(api_key: str, model_name: str = "gemini-pro") -> None:
         import google.generativeai as genai  # type: ignore
         genai.configure(api_key=api_key)
         
-        # First, try the available model we know works  
-        working_models = ["models/gemini-2.5-flash", "gemini-2.5-flash", "models/gemini-pro", model_name]
+        # Try current models in preference order
+        working_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", model_name]
         
         for model in working_models:
             try:

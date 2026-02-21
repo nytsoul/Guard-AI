@@ -14,6 +14,7 @@ interface Project {
   id: string;
   name: string;
   environment: string;
+  apiKey?: string;
   status: string;
   uptime: number;
   totalRequests: number;
@@ -27,6 +28,7 @@ export function Projects() {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectEnv, setNewProjectEnv] = useState('Production');
+  const [newProjectApiKey, setNewProjectApiKey] = useState('');
   const [creating, setCreating] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
 
@@ -52,10 +54,15 @@ export function Projects() {
     }
     setCreating(true);
     try {
-      const newProject = await api.projects.create({ name: newProjectName, environment: newProjectEnv }) as Project;
+      const newProject = await api.projects.create({
+        name: newProjectName,
+        environment: newProjectEnv,
+        apiKey: newProjectApiKey || undefined,
+      }) as Project;
       setProjects(prev => [...prev, newProject]);
       setShowNewProjectDialog(false);
       setNewProjectName('');
+      setNewProjectApiKey('');
       toast.success(`Project "${newProject.name}" created successfully`);
     } catch (err) {
       toast.error('Failed to create project');
@@ -74,8 +81,13 @@ export function Projects() {
     setVisibleKeys(prev => ({ ...prev, [projectId]: !prev[projectId] }));
   };
 
-  const maskApiKey = (projectId: string) => {
-    return visibleKeys[projectId] ? `sk_live_${projectId.padEnd(32, 'x')}` : 'sk-••••••••••••••••';
+  const getApiKey = (project: Project) => {
+    return project.apiKey || `sk_live_${project.id.padEnd(32, 'x')}`;
+  };
+
+  const maskApiKey = (project: Project) => {
+    const key = getApiKey(project);
+    return visibleKeys[project.id] ? key : `${key.slice(0, 7)}${'•'.repeat(20)}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -175,7 +187,7 @@ export function Projects() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-xs text-slate-600 dark:text-slate-400 mb-1">Project API Key</p>
-                          <p className="font-mono text-sm">{maskApiKey(project.id)}</p>
+                          <p className="font-mono text-sm">{maskApiKey(project)}</p>
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -189,7 +201,7 @@ export function Projects() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => copyToClipboard(maskApiKey(project.id), 'API Key')}
+                            onClick={() => copyToClipboard(getApiKey(project), 'API Key')}
                           >
                             <Copy className="size-4" />
                           </Button>
@@ -242,15 +254,25 @@ export function Projects() {
                 id="project-env"
                 value={newProjectEnv}
                 onChange={(e) => setNewProjectEnv(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-transparent"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-transparent dark:text-slate-200"
               >
                 <option value="Production">Production</option>
                 <option value="Staging">Staging</option>
                 <option value="Development">Development</option>
               </select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="project-api-key">API Key <span className="text-xs text-slate-400 font-normal">(optional — auto-generated if empty)</span></Label>
+              <Input
+                id="project-api-key"
+                placeholder="sk_live_... or leave blank to auto-generate"
+                value={newProjectApiKey}
+                onChange={(e) => setNewProjectApiKey(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowNewProjectDialog(false)}>
+              <Button variant="outline" className="flex-1" onClick={() => { setShowNewProjectDialog(false); setNewProjectApiKey(''); }}>
                 Cancel
               </Button>
               <Button

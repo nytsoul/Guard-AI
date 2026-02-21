@@ -90,8 +90,8 @@ export function RedTeam() {
           api.redTeam.getSimulations() as Promise<{ simulations: PastSimulation[] }>,
           api.redTeam.getRuns(5) as Promise<{ runs: AdvRun[] }>,
         ]);
-        setInsights(insightsData.insights);
-        setPastSims(simsData.simulations);
+        setInsights(Array.isArray(insightsData.insights) ? insightsData.insights : []);
+        setPastSims(Array.isArray(simsData.simulations) ? simsData.simulations : []);
         setPastRuns(runsData.runs);
       } catch { toast.error('Failed to load red team data'); }
       finally { setLoading(false); }
@@ -109,6 +109,13 @@ export function RedTeam() {
         categories: selectedCats,
         team: teamContext || undefined,
       }) as AdvRun;
+      // Ensure summary and attacks exist (guard against shape mismatch)
+      if (!run.summary) {
+        run.summary = { total: 0, blocked: 0, undetected: 0, bypassed: 0, avgRiskScore: 0, securityScore: 0, blockRate: 0 };
+      }
+      if (!run.attacks) run.attacks = [];
+      if (!run.findings) run.findings = [];
+      if (!run.categoryBreakdown) run.categoryBreakdown = {};
       setCurrentRun(run);
       toast.success(`Generated ${run.summary.total} attacks — Block rate: ${run.summary.blockRate}%`);
       // Refresh runs list and insights
@@ -117,7 +124,7 @@ export function RedTeam() {
         api.redTeam.getInsights() as Promise<{ insights: Insight[] }>,
       ]);
       setPastRuns(runsData.runs);
-      setInsights(insightsData.insights);
+      setInsights(Array.isArray(insightsData.insights) ? insightsData.insights : []);
     } catch { toast.error('Generation failed. Please try again.'); }
     finally { setGenerating(false); }
   };

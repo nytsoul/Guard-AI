@@ -38,6 +38,48 @@ def _serialize(obj):
 def _clean(doc): return _serialize(doc)
 
 
+def _normalize_run(run: dict) -> dict:
+    """Normalize old-format run documents to the shape the frontend expects."""
+    # Already has the new shape
+    if "summary" in run and isinstance(run["summary"], dict):
+        if "results" in run and "attacks" not in run:
+            run["attacks"] = run.pop("results")
+        if "id" in run and "runId" not in run:
+            run["runId"] = run.pop("id")
+        return run
+
+    # Convert flat fields → nested summary
+    total   = run.pop("totalAttacks", 0)
+    blocked = run.pop("blockedCount", 0)
+    bypassed = run.pop("bypassedCount", total - blocked)
+    run["summary"] = {
+        "total":        total,
+        "blocked":      blocked,
+        "undetected":   bypassed,
+        "bypassed":     bypassed,
+        "avgRiskScore": run.pop("avgRiskScore", 0),
+        "securityScore": run.pop("securityScore", 0),
+        "blockRate":    run.pop("blockRate", 0),
+    }
+    if "id" in run and "runId" not in run:
+        run["runId"] = run.pop("id")
+    if "results" in run and "attacks" not in run:
+        run["attacks"] = run.pop("results")
+    # Normalize findings from strings to objects
+    if "findings" in run and run["findings"] and isinstance(run["findings"][0], str):
+        new_findings = []
+        for f in run["findings"]:
+            is_vuln = "vulnerability" in f.lower() or "only" in f.lower()
+            new_findings.append({
+                "category":       "general",
+                "bypassRate":     50 if is_vuln else 0,
+                "severity":       "high" if is_vuln else "low",
+                "recommendation": f,
+            })
+        run["findings"] = new_findings
+    return run
+
+
 # ─────────────────────────────────────────────────────────────────
 # ENHANCED ATTACK BANK
 # Advanced adversarial prompts with real-world attack patterns
@@ -245,26 +287,91 @@ def execute():
 
 @red_team_bp.route("/red-team/insights", methods=["GET"])
 def get_insights():
+    """Return insights as a flat array of Insight objects expected by the frontend."""
     last_run = _db()["adversarial_runs"].find_one(sort=[("timestamp", -1)])
+
+    insights: list = []
+
     if last_run and last_run.get("findings"):
-        vulnerabilities = [f for f in last_run["findings"] if "bypassed" in f.lower()][:3]
-        strengths = [f for f in last_run["findings"] if "blocked" in f.lower() or "detected" in f.lower()][:3]
-    else:
-        vulnerabilities = [
-            "Context manipulation bypassed Layer 1 (rule engine) in 2/5 cases.",
-            "Indirect injection via document metadata partially successful.",
-        ]
-        strengths = [
-            "All direct prompt injection attacks detected and blocked.",
-            "Jailbreak attempts blocked with 95%+ accuracy by LLM layer.",
-            "PII extraction requests intercepted by rule engine.",
+        for f in last_run["findings"]:
+            if isinstance(f, dict):
+                # Already structured from a real run
+                cat = f.get("category", "general")
+                bypass = f.get("bypassRate", 0)
+                sev = f.get("severity", "medium")
+                rec = f.get("recommendation", "Review detection rules.")
+                if bypass > 0:
+                    insights.append({
+                        "type": "vulnerability",
+                        "severity": sev,
+                        "title": f"Bypass detected in {cat}",
+                        "description": f"{cat} attacks had a {bypass}% bypass rate.",
+                        "recommendation": rec,
+                        "affectedEndpoints": ["/api/analyze-prompt"],
+                    })
+                else:
+                    insights.append({
+                        "type": "strength",
+                        "severity": "low",
+                        "title": f"{cat} attacks fully blocked",
+                        "description": f"All {cat} attacks were detected and blocked.",
+                        "recommendation": "Continue monitoring.",
+                        "affectedEndpoints": ["/api/analyze-prompt"],
+                    })
+            elif isinstance(f, str):
+                # Legacy string findings
+                is_vuln = "bypassed" in f.lower() or "partial" in f.lower()
+                insights.append({
+                    "type": "vulnerability" if is_vuln else "strength",
+                    "severity": "high" if is_vuln else "low",
+                    "title": f[:60],
+                    "description": f,
+                    "recommendation": "Review and update detection rules." if is_vuln else "Continue monitoring.",
+                    "affectedEndpoints": ["/api/analyze-prompt"],
+                })
+
+    # Fallback defaults when no run data exists
+    if not insights:
+        insights = [
+            {
+                "type": "vulnerability", "severity": "high",
+                "title": "Context manipulation partially bypasses rules",
+                "description": "Context manipulation bypassed Layer 1 (rule engine) in 2/5 cases.",
+                "recommendation": "Add context-aware detection rules to the rule engine.",
+                "affectedEndpoints": ["/api/analyze-prompt"],
+            },
+            {
+                "type": "vulnerability", "severity": "medium",
+                "title": "Indirect injection via metadata",
+                "description": "Indirect injection via document metadata was partially successful.",
+                "recommendation": "Sanitize document metadata before processing.",
+                "affectedEndpoints": ["/api/rag/scan"],
+            },
+            {
+                "type": "strength", "severity": "low",
+                "title": "Direct prompt injection fully blocked",
+                "description": "All direct prompt injection attacks were detected and blocked.",
+                "recommendation": "Continue monitoring for new injection patterns.",
+                "affectedEndpoints": ["/api/analyze-prompt"],
+            },
+            {
+                "type": "strength", "severity": "low",
+                "title": "Jailbreak attempts blocked at 95%+",
+                "description": "Jailbreak attempts blocked with 95%+ accuracy by LLM layer.",
+                "recommendation": "Maintain model updates for evolving jailbreak techniques.",
+                "affectedEndpoints": ["/api/analyze-prompt"],
+            },
+            {
+                "type": "strength", "severity": "low",
+                "title": "PII extraction intercepted",
+                "description": "PII extraction requests intercepted by rule engine.",
+                "recommendation": "Periodically review PII detection patterns.",
+                "affectedEndpoints": ["/api/analyze-prompt"],
+            },
         ]
 
     return jsonify({
-        "insights": {
-            "vulnerabilities": vulnerabilities,
-            "strengths":       strengths,
-        },
+        "insights": insights,
         "lastRunTimestamp": last_run["timestamp"] if last_run else None,
     }), 200
 
@@ -338,6 +445,7 @@ def generate_attacks():
         agg_dict  = agg.as_dict()
 
         blocked = agg_dict["action"] in ("blocked", "flagged")
+        detected = agg_dict["final_risk_score"] >= 30 or blocked
         if blocked:
             blocked_cnt += 1
 
@@ -350,6 +458,7 @@ def generate_attacks():
             "category":        cat,
             "action":          agg_dict["action"],
             "blocked":         blocked,
+            "detected":        detected,
             "riskScore":       agg_dict["final_risk_score"],
             "riskLevel":       agg_dict["riskLevel"],
             "confidence":      agg_dict["confidence"],
@@ -368,43 +477,57 @@ def generate_attacks():
     block_rate    = round(blocked_cnt / max(total_attacks, 1) * 100, 1)
     security_score = round(block_rate * 0.85 + min(20, len(categories) * 3), 1)
 
-    # Build human-readable findings
+    # Build structured findings (frontend expects objects, not strings)
     findings = []
     for cat, stats in cat_stats.items():
         if stats["total"] == 0:
             continue
         rate = stats["blocked"] / stats["total"] * 100
+        bypass_rate = round(100 - rate, 1)
         if rate < 70:
-            findings.append(
-                f"VULNERABILITY: {cat.replace('_', ' ').title()} — "
-                f"only {rate:.0f}% blocked ({stats['blocked']}/{stats['total']})"
-            )
-        else:
-            findings.append(
-                f"Detected & blocked {stats['blocked']}/{stats['total']} "
-                f"{cat.replace('_', ' ')} attacks ({rate:.0f}%)"
-            )
+            findings.append({
+                "category":       cat,
+                "bypassRate":     bypass_rate,
+                "severity":       "critical" if rate < 40 else "high",
+                "recommendation": f"Strengthen detection rules for {cat.replace('_', ' ')} attacks. "
+                                  f"Only {rate:.0f}% blocked ({stats['blocked']}/{stats['total']}).",
+            })
+        elif rate < 100:
+            findings.append({
+                "category":       cat,
+                "bypassRate":     bypass_rate,
+                "severity":       "medium",
+                "recommendation": f"Review partial bypasses in {cat.replace('_', ' ')}. "
+                                  f"{stats['blocked']}/{stats['total']} blocked ({rate:.0f}%).",
+            })
+
+    avg_risk = round(sum(r["riskScore"] for r in results) / max(len(results), 1), 1)
 
     run_doc = {
-        "id":             f"run_{int(time.time() * 1000)}",
+        "runId":          f"run_{int(time.time() * 1000)}",
         "timestamp":      datetime.now().isoformat(),
-        "totalAttacks":   total_attacks,
-        "blockedCount":   blocked_cnt,
-        "bypassedCount":  bypassed_cnt,
-        "blockRate":      block_rate,
-        "securityScore":  security_score,
+        "summary": {
+            "total":        total_attacks,
+            "blocked":      blocked_cnt,
+            "undetected":   bypassed_cnt,
+            "bypassed":     bypassed_cnt,
+            "avgRiskScore": avg_risk,
+            "securityScore": security_score,
+            "blockRate":    block_rate,
+        },
         "categories":     list(cat_stats.keys()),
         "categoryBreakdown": {
             cat: {
                 "total":      s["total"],
                 "blocked":    s["blocked"],
+                "undetected": s["total"] - s["blocked"],
                 "bypassed":   s["total"] - s["blocked"],
                 "blockRate":  round(s["blocked"] / max(s["total"], 1) * 100, 1),
             }
             for cat, s in cat_stats.items() if s["total"] > 0
         },
         "findings":   findings,
-        "results":    results,
+        "attacks":    results,
         "teamContext": team,
         "status":     "completed",
     }
@@ -422,10 +545,10 @@ def generate_attacks():
 def get_runs():
     limit = max(1, min(50, int(request.args.get("limit", 10))))
     items = list(_db()["adversarial_runs"].find({}).sort("timestamp", -1).limit(limit))
-    # Strip large results array from list view
     slim  = []
     for run in items:
-        r = dict(run)
+        r = _normalize_run(dict(run))
+        r.pop("attacks", None)
         r.pop("results", None)
         slim.append(_clean(r))
     return jsonify({"runs": slim, "total": len(slim)}), 200
@@ -438,7 +561,9 @@ def get_runs():
 
 @red_team_bp.route("/red-team/runs/<run_id>", methods=["GET"])
 def get_run(run_id):
-    run = _db()["adversarial_runs"].find_one({"id": run_id})
+    run = _db()["adversarial_runs"].find_one({"runId": run_id})
+    if not run:
+        run = _db()["adversarial_runs"].find_one({"id": run_id})
     if not run:
         try:
             run = _db()["adversarial_runs"].find_one({"_id": ObjectId(run_id)})
@@ -446,4 +571,4 @@ def get_run(run_id):
             pass
     if not run:
         return jsonify({"error": "Run not found"}), 404
-    return jsonify(_clean(run)), 200
+    return jsonify(_clean(_normalize_run(dict(run)))), 200

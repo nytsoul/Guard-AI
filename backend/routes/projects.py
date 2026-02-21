@@ -13,6 +13,8 @@ Endpoints:
   GET    /api/health
 """
 
+import hashlib
+import secrets
 import time
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -33,7 +35,11 @@ def _serialize(obj):
     return obj
 
 
-def _clean(doc): return _serialize(doc)
+def _clean(doc):
+    d = _serialize(doc)
+    if isinstance(d, dict):
+        d.pop("_id", None)
+    return d
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -54,10 +60,16 @@ def get_projects():
 def create_project():
     data  = request.get_json(silent=True) or {}
     count = _db()["projects"].count_documents({})
+    proj_id = f"proj_{count + 1:03d}_{int(time.time())}"
+    # Generate a deterministic but unique API key
+    api_key = data.get("apiKey", "").strip()
+    if not api_key:
+        api_key = f"sk_live_{secrets.token_hex(16)}"
     project = {
-        "id":              f"proj_{count + 1:03d}_{int(time.time())}",
+        "id":              proj_id,
         "name":            data.get("name", "New Project").strip(),
         "environment":     data.get("environment", "Development"),
+        "apiKey":          api_key,
         "status":          "Healthy",
         "uptime":          99.0,
         "totalRequests":   0,

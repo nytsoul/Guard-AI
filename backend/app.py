@@ -68,11 +68,11 @@ def create_app() -> Flask:
 
     # ── MongoDB ───────────────────────────────────────────────────
     try:
-        client = MongoClient(
-            cfg.MONGODB_URI,
-            serverSelectionTimeoutMS=5000,
-            tlsCAFile=certifi.where(),
-        )
+        mongo_kwargs = {"serverSelectionTimeoutMS": 5000}
+        # Only attach TLS CA bundle for Atlas / SRV connections
+        if "+srv" in cfg.MONGODB_URI or "mongodb.net" in cfg.MONGODB_URI:
+            mongo_kwargs["tlsCAFile"] = certifi.where()
+        client = MongoClient(cfg.MONGODB_URI, **mongo_kwargs)
         db = client.get_default_database()
         db.command("ping")  # Verify connection
         logger.info("MongoDB connected: %s", cfg.MONGODB_URI.split("@")[-1])

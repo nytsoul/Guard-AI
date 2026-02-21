@@ -4,9 +4,12 @@ All settings loaded from environment variables with safe defaults.
 """
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Explicitly resolve .env relative to this file so it loads regardless of CWD
+_env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(_env_path, encoding="utf-8-sig")  # utf-8-sig strips BOM if present
 
 
 class Config:
