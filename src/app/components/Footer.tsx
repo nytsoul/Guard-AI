@@ -39,7 +39,7 @@ export function Footer({ variant = 'landing' }: FooterProps) {
         <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2">
             <Shield className="size-3.5 text-blue-600" />
-            <span>Sentinel Shield © {new Date().getFullYear()}</span>
+            <span>GuardAI © {new Date().getFullYear()}</span>
           </div>
           <div className="flex items-center gap-6">
             <a href="#" className="hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Documentation</a>
@@ -67,7 +67,7 @@ export function Footer({ variant = 'landing' }: FooterProps) {
               <div className="p-1.5 bg-blue-600 rounded-lg">
                 <Shield className="size-4 text-white" />
               </div>
-              <span className="font-bold text-slate-900 dark:text-white">Sentinel Shield</span>
+              <span className="font-bold text-slate-900 dark:text-white">GuardAI</span>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed">
               Enterprise-grade LLM security middleware. Protecting AI infrastructure worldwide.
@@ -99,7 +99,7 @@ export function Footer({ variant = 'landing' }: FooterProps) {
         {/* Bottom bar */}
         <div className="pt-8 border-t border-slate-200 dark:border-slate-800/60 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-xs text-slate-400 dark:text-slate-600">
-            © {new Date().getFullYear()} Sentinel Shield. All rights reserved. SECURE_PROXY_AUTH_V2 / ENCRYPTION_AES_256
+            © {new Date().getFullYear()} GuardAI. All rights reserved. SECURE_PROXY_AUTH_V2 / ENCRYPTION_AES_256
           </div>
           <div className="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-600">
             <Link to="/login" className="hover:text-slate-600 dark:hover:text-slate-400 transition-colors">

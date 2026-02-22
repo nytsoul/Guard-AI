@@ -59,7 +59,7 @@ export function LandingPage() {
             <div className="p-1.5 bg-blue-600 rounded-lg">
               <Shield className="size-5 text-white" />
             </div>
-            <span className="font-bold text-lg text-slate-900 dark:text-white">Sentinel Shield</span>
+            <span className="font-bold text-lg text-slate-900 dark:text-white">GuardAI</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-slate-500 dark:text-slate-400">
             <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
@@ -154,12 +154,12 @@ export function LandingPage() {
                 <div className="size-3 rounded-full bg-yellow-500/80" />
                 <div className="size-3 rounded-full bg-green-500/80" />
               </div>
-              <span className="text-xs text-slate-500 ml-2 font-mono">sentinel-shield-console</span>
+              <span className="text-xs text-slate-500 ml-2 font-mono">guardai-console</span>
             </div>
             <div className="p-6 font-mono text-sm space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-green-600 dark:text-green-400">$</span>
-                <span className="text-slate-700 dark:text-slate-300">sentinel-shield init --project enterprise-llm</span>
+                <span className="text-slate-700 dark:text-slate-300">guardai init --project enterprise-llm</span>
               </div>
               <div className="text-slate-500">✓ Connected to gateway proxy...</div>
               <div className="text-slate-500">✓ Input firewall activated (12 rules loaded)</div>

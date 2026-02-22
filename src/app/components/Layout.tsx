@@ -29,7 +29,7 @@ export function Layout() {
               <Shield className="size-6 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg">Sentinel Shield</h1>
+              <h1 className="font-bold text-lg">GuardAI</h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">Enterprise LLM Security</p>
             </div>
           </div>
@@ -89,14 +89,14 @@ export function Layout() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-                  <span>Sentinel Shield</span>
+                  <span>GuardAI</span>
                   <span>/</span>
                   <span className="text-slate-700 dark:text-slate-300">
                     {navItems.find(item => item.path === location.pathname)?.label || 'Home'}
                   </span>
                 </div>
                 <h2 className="font-semibold text-xl">
-                  {navItems.find(item => item.path === location.pathname)?.label || 'Sentinel Shield'}
+                  {navItems.find(item => item.path === location.pathname)?.label || 'GuardAI'}
                 </h2>
               </div>
               <div className="flex items-center gap-2">
