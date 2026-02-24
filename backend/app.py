@@ -79,8 +79,24 @@ def create_app() -> Flask:
     except Exception as exc:
         logger.error("MongoDB connection failed: %s", exc)
         # Fall back to in-process mock DB for demos without MongoDB
-        from unittest.mock import MagicMock
-        db = MagicMock()
+        class MockCollection:
+            def find_one(self, *args, **kwargs): return None
+            def find(self, *args, **kwargs): return []
+            def insert_one(self, doc):
+                from bson import ObjectId
+                if "_id" not in doc: doc["_id"] = ObjectId()
+                class Result: inserted_id = doc["_id"]
+                return Result()
+            def insert_many(self, docs, *args, **kwargs): pass
+            def update_one(self, *args, **kwargs): pass
+            def delete_one(self, *args, **kwargs): pass
+            def count_documents(self, *args, **kwargs): return 0
+
+        class MockDB:
+            def __getitem__(self, name): return MockCollection()
+            def command(self, *args, **kwargs): pass
+
+        db = MockDB()
         logger.warning("Running with mock DB — data will NOT persist.")
 
     app.extensions["db"] = db

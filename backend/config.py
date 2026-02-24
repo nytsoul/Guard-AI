@@ -23,6 +23,8 @@ class Config:
         "JWT_SECRET", "sentinel_shield_super_secret_jwt_key_2024"
     )
     JWT_EXPIRY_SECONDS: int = int(os.getenv("JWT_EXPIRY_SECONDS", "86400"))
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
     # ── LLM (Gemini) ──────────────────────────
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
