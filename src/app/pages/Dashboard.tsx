@@ -71,11 +71,11 @@ export function Dashboard() {
 
   const threatVectorData = metrics
     ? [
-        { name: 'Prompt Injection', value: metrics.threatVectors.promptInjection, color: '#ef4444' },
-        { name: 'PII Leakage', value: metrics.threatVectors.piiLeakage, color: '#f59e0b' },
-        { name: 'Jailbreak', value: metrics.threatVectors.jailbreak, color: '#8b5cf6' },
-        { name: 'Tool Misuse', value: metrics.threatVectors.toolMisuse, color: '#06b6d4' },
-      ]
+      { name: 'Prompt Injection', value: metrics.threatVectors.promptInjection, color: '#ef4444' },
+      { name: 'PII Leakage', value: metrics.threatVectors.piiLeakage, color: '#f59e0b' },
+      { name: 'Jailbreak', value: metrics.threatVectors.jailbreak, color: '#8b5cf6' },
+      { name: 'Tool Misuse', value: metrics.threatVectors.toolMisuse, color: '#06b6d4' },
+    ]
     : [];
 
   const MetricSkeleton = () => (
@@ -269,51 +269,49 @@ export function Dashboard() {
               <tbody>
                 {loading
                   ? Array(4).fill(0).map((_, i) => (
-                      <tr key={i} className="border-b border-slate-100 dark:border-slate-900">
-                        {Array(6).fill(0).map((_, j) => (
-                          <td key={j} className="py-3 px-4"><Skeleton className="h-4 w-20" /></td>
-                        ))}
-                      </tr>
-                    ))
+                    <tr key={i} className="border-b border-slate-100 dark:border-slate-900">
+                      {Array(6).fill(0).map((_, j) => (
+                        <td key={j} className="py-3 px-4"><Skeleton className="h-4 w-20" /></td>
+                      ))}
+                    </tr>
+                  ))
                   : recentLogs.map((log) => (
-                      <tr key={log.id} className="border-b border-slate-100 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">
-                          {new Date(log.timestamp).toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 font-medium">{log.endpoint || 'N/A'}</td>
-                        <td className="py-3 px-4">{log.attackType.replace('_', ' ')}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-12 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full ${log.riskScore > 80 ? 'bg-red-500' : log.riskScore > 60 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                                style={{ width: `${log.riskScore}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-semibold">{log.riskScore}</span>
+                    <tr key={log.id} className="border-b border-slate-100 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 font-medium">{log.endpoint || 'N/A'}</td>
+                      <td className="py-3 px-4">{log.attackType.replace('_', ' ')}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-12 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${log.riskScore > 80 ? 'bg-red-500' : log.riskScore > 60 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                              style={{ width: `${log.riskScore}%` }}
+                            />
                           </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            log.severity === 'critical' ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400' :
+                          <span className="text-xs font-semibold">{log.riskScore}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${log.severity === 'critical' ? 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400' :
                             log.severity === 'high' ? 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-400' :
-                            log.severity === 'medium' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400' :
-                            'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400'
+                              log.severity === 'medium' ? 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400' :
+                                'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400'
                           }`}>
-                            {log.severity.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            log.action === 'blocked' ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400' :
+                          {log.severity.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${log.action === 'blocked' ? 'bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400' :
                             log.action === 'flagged' ? 'bg-yellow-100 dark:bg-yellow-950/50 text-yellow-700 dark:text-yellow-400' :
-                            'bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400'
+                              'bg-green-100 dark:bg-green-950/50 text-green-700 dark:text-green-400'
                           }`}>
-                            {log.action.charAt(0).toUpperCase() + log.action.slice(1)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          {log.action.charAt(0).toUpperCase() + log.action.slice(1)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -332,14 +330,14 @@ export function Dashboard() {
               {loading
                 ? Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
                 : activeProjects.map((project) => (
-                    <div key={project.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
-                      <div>
-                        <p className="font-medium text-sm">{project.name}</p>
-                        <p className="text-xs text-green-600 dark:text-green-400">{project.uptime}% uptime</p>
-                      </div>
-                      <span className="text-lg font-bold text-green-600 dark:text-green-400">{project.securityScore}</span>
+                  <div key={project.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div>
+                      <p className="font-medium text-sm">{project.name}</p>
+                      <p className="text-xs text-green-600 dark:text-green-400">{project.uptime}% uptime</p>
                     </div>
-                  ))}
+                    <span className="text-lg font-bold text-green-600 dark:text-green-400">{project.securityScore}</span>
+                  </div>
+                ))}
             </div>
             <Button variant="outline" className="w-full mt-4 border-dashed" onClick={() => navigate('/projects')}>
               + New Project
