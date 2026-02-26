@@ -60,24 +60,29 @@ def create_app() -> Flask:
     app.secret_key = cfg.SECRET_KEY
 
     # ── CORS ──────────────────────────────────────────────────────
-    CORS(
-        app,
-        resources={r"/api/*": {"origins": cfg.CORS_ORIGINS}},
-        supports_credentials=True,
-    )
+    CORS(app, origins=["https://guard-ai-snowy.vercel.app"])
 
     # ── MongoDB ───────────────────────────────────────────────────
-    try:
-        mongo_kwargs = {"serverSelectionTimeoutMS": 5000}
-        # Only attach TLS CA bundle for Atlas / SRV connections
-        if "+srv" in cfg.MONGODB_URI or "mongodb.net" in cfg.MONGODB_URI:
-            mongo_kwargs["tlsCAFile"] = certifi.where()
-        client = MongoClient(cfg.MONGODB_URI, **mongo_kwargs)
-        db = client.get_default_database()
-        db.command("ping")  # Verify connection
-        logger.info("MongoDB connected: %s", cfg.MONGODB_URI.split("@")[-1])
-    except Exception as exc:
-        logger.error("MongoDB connection failed: %s", exc)
+    db = None
+    # attempt connection with simple retry loop to avoid transient Atlas errors
+    mongo_kwargs = {"serverSelectionTimeoutMS": 5000}
+    if "+srv" in cfg.MONGODB_URI or "mongodb.net" in cfg.MONGODB_URI:
+        mongo_kwargs["tlsCAFile"] = certifi.where()
+
+    for attempt in range(1, 4):
+        try:
+            client = MongoClient(cfg.MONGODB_URI, **mongo_kwargs)
+            db = client.get_default_database()
+            db.command("ping")  # Verify connection
+            logger.info("MongoDB connected: %s", cfg.MONGODB_URI.split("@")[-1])
+            break
+        except Exception as exc:
+            logger.error(
+                "MongoDB connection failed (attempt %d): %s", attempt, exc
+            )
+            if attempt < 3:
+                time.sleep(2)  # brief pause before retry
+    if db is None:
         # Fall back to in-process mock DB for demos without MongoDB
         class MockCollection:
             def find_one(self, *args, **kwargs): return None
