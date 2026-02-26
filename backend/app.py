@@ -105,7 +105,7 @@ def create_app() -> Flask:
     try:
         from services import local_model_service, llm_security_service
         local_model_service.initialize(cfg.LOCAL_MODEL_PATH)
-        llm_security_service.initialize(cfg.GEMINI_API_KEY, cfg.GEMINI_MODEL)
+        llm_security_service.initialize(cfg.GROQ_API_KEY, cfg.GROQ_MODEL)
     except Exception as exc:
         logger.error("Service initialization error: %s", exc)
 

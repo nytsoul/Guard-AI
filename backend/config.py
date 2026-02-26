@@ -26,10 +26,10 @@ class Config:
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
-    # ── LLM (Gemini) ──────────────────────────
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-    GEMINI_TIMEOUT: int = int(os.getenv("GEMINI_TIMEOUT", "15"))
+    # ── LLM (Groq) ────────────────────────────
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    GROQ_TIMEOUT: int = int(os.getenv("GROQ_TIMEOUT", "15"))
 
     # ── Local Model ───────────────────────────
     # Set LOCAL_MODEL_ENABLED=false to skip entirely (recommended unless model file exists)
