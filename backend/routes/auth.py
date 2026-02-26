@@ -11,9 +11,9 @@ Login/signup response:
   { token: str, user: { id, name, email, role, createdAt } }
 """
 
-import time
 import jwt
 import bcrypt
+import requests as http_requests
 from bson import ObjectId
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, current_app
@@ -138,11 +138,26 @@ def google_login():
     if not access_token:
         return jsonify({"error": "access_token is required"}), 400
 
-    # In production: verify token with Google's tokeninfo endpoint.
-    # For now, create/update a placeholder user.
-    email = f"google_{int(time.time())}@oauth.google.com"
-    name  = "Google User"
+    # Verify the access token and fetch user info from Google
+    try:
+        resp = http_requests.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return jsonify({"error": "Invalid or expired Google access token"}), 401
+        google_user = resp.json()
+    except Exception as exc:
+        return jsonify({"error": f"Failed to contact Google: {exc}"}), 502
 
+    email = google_user.get("email", "").strip().lower()
+    name  = google_user.get("name") or google_user.get("given_name") or "Google User"
+
+    if not email:
+        return jsonify({"error": "Google account does not expose an email address"}), 400
+
+    # Upsert: find existing user by email or create a new one
     user = _db()["users"].find_one({"email": email})
     if not user:
         doc = {
