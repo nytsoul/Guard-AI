@@ -4,7 +4,20 @@
  * New: Policy Test | Audit Log | Adversarial Generation | Explainability
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// ensure trailing `/api` segment if omitted
+function normalizeBase(url: string) {
+  if (!url) return url;
+  // strip trailing slash(es)
+  let u = url.replace(/\/+$/g, "");
+  if (!u.endsWith("/api")) {
+    u = u + "/api";
+  }
+  return u;
+}
+
+const rawBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = normalizeBase(rawBase);
 
 interface RequestOptions {
   method?: string;

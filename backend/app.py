@@ -60,7 +60,13 @@ def create_app() -> Flask:
     app.secret_key = cfg.SECRET_KEY
 
     # ── CORS ──────────────────────────────────────────────────────
-    CORS(app, origins=["https://guard-ai-snowy.vercel.app"])
+    # allow origins from config (comma-separated list) or default to permissive
+    origins = []
+    if cfg.CORS_ORIGINS and cfg.CORS_ORIGINS.strip():
+        origins = [o.strip() for o in cfg.CORS_ORIGINS.split(",") if o.strip()]
+    if not origins:
+        origins = ["*"]
+    CORS(app, origins=origins)
 
     # ── MongoDB ───────────────────────────────────────────────────
     db = None
